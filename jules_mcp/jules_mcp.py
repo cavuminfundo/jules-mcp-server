@@ -16,7 +16,7 @@ def get_headers() -> Dict[str, str]:
 
 async def _make_api_request(method: str, url: str, success_override: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
     """Helper function to make API requests with standard error handling."""
-    kwargs.setdefault("timeout", 15.0)
+    kwargs.setdefault("timeout", 120.0)
     kwargs.setdefault("headers", get_headers())
 
     async with httpx.AsyncClient() as client:
@@ -26,6 +26,7 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
         if success_override is not None:
             return success_override
         return res.json()
+
 
 def _clean_session_id(session_id: str) -> str:
     return session_id.split('/')[-1] if '/' in session_id else session_id

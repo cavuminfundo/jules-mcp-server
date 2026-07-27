@@ -39,14 +39,15 @@ def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) 
     return params
 
 @mcp.tool()
-async def list_sessions(page_size: Optional[int] = 50, page_token: Optional[str] = None, fetch_all: bool = True) -> Dict[str, Any]:
+async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = True) -> Dict[str, Any]:
     """List sessions with optional automatic pagination to retrieve all sessions natively."""
+    token_arg = page_token if page_token else None
     if not fetch_all:
-        params = _get_pagination_params(page_size, page_token)
+        params = _get_pagination_params(page_size, token_arg)
         return await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
 
     all_sessions = []
-    current_token = page_token
+    current_token = token_arg
 
     while True:
         params = _get_pagination_params(page_size, current_token)
@@ -79,8 +80,8 @@ async def get_session(session_id: str) -> Dict[str, Any]:
 async def create_session(
     source: str,
     prompt: str,
-    title: Optional[str] = None,
-    starting_branch: Optional[str] = None,
+    title: str = "",
+    starting_branch: str = "",
     require_plan_approval: bool = False
 ) -> Dict[str, Any]:
     """Create a new Jules session for a given source and prompt."""
@@ -111,7 +112,7 @@ async def delete_session(session_id: str) -> Dict[str, Any]:
 
 @mcp.tool()
 async def clean_completed_sessions() -> Dict[str, Any]:
-    """Scans all sessions and deletes completed or terminated sessions automatically."""
+    """Scans all sessions and deletes completed, terminated, failed, or inactive sessions automatically."""
     sessions_res = await list_sessions(fetch_all=True)
     if "error" in sessions_res:
         return sessions_res
@@ -120,10 +121,15 @@ async def clean_completed_sessions() -> Dict[str, Any]:
     deleted_ids = []
     errors = []
 
+    terminal_states = (
+        "COMPLETED", "SUCCEEDED", "TERMINATED", "CANCELLED",
+        "CLOSED", "FAILED", "EXPIRED", "REJECTED", "FINISHED", "ABORTED"
+    )
+
     for s in sessions:
         sid = s.get("id") or s.get("name")
         state = s.get("state", "").upper()
-        if state in ("COMPLETED", "SUCCEEDED", "TERMINATED", "CANCELLED", "CLOSED"):
+        if state in terminal_states:
             del_res = await delete_session(sid)
             if "error" in del_res:
                 errors.append({"session_id": sid, "error": del_res["error"]})
@@ -136,6 +142,7 @@ async def clean_completed_sessions() -> Dict[str, Any]:
         "deleted_sessions": deleted_ids,
         "errors": errors
     }
+
 
 @mcp.tool()
 async def list_activities(session_id: str, page_size: Optional[int] = 20, page_token: Optional[str] = None) -> Dict[str, Any]:

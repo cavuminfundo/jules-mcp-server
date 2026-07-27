@@ -1,6 +1,6 @@
 [project]
 name = "jules-mcp-server"
-version = "0.2.0"
+version = "0.2.1"
 description = "Production-grade FastMCP server for Google Jules API"
 dependencies = [
     "fastmcp>=2.0.0",

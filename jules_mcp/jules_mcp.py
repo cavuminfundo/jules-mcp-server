@@ -15,6 +15,12 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = JULES_API_KEY
     return headers
 
+
+def _check_error(res: httpx.Response) -> Optional[Dict[str, str]]:
+    if not res.is_success:
+        return {"error": f"API error {res.status_code}: {res.text}"}
+    return None
+
 @mcp.tool()
 async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
     """List sessions with safe pagination and parameter coercion."""
@@ -26,8 +32,8 @@ async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str]
 
     async with httpx.AsyncClient() as client:
         res = await client.get(f"{JULES_API_BASE}/sessions", headers=get_headers(), params=params, timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
+        if err := _check_error(res):
+            return err
         return res.json()
 
 @mcp.tool()
@@ -41,8 +47,8 @@ async def get_session(session_id: str) -> Dict[str, Any]:
 
     async with httpx.AsyncClient() as client:
         res = await client.get(url, headers=get_headers(), timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
+        if err := _check_error(res):
+            return err
         return res.json()
 
 @mcp.tool()
@@ -62,8 +68,8 @@ async def list_activities(session_id: str, page_size: Optional[int] = 20, page_t
 
     async with httpx.AsyncClient() as client:
         res = await client.get(url, headers=get_headers(), params=params, timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
+        if err := _check_error(res):
+            return err
         return res.json()
 
 @mcp.tool()
@@ -77,8 +83,8 @@ async def approve_session_plan(session_id: str) -> Dict[str, Any]:
 
     async with httpx.AsyncClient() as client:
         res = await client.post(url, headers=get_headers(), json={}, timeout=15.0)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text}"}
+        if err := _check_error(res):
+            return err
         return {"status": "approved", "session_id": clean_id}
 
 @mcp.tool()
@@ -93,8 +99,8 @@ async def send_session_message(session_id: str, message: str) -> Dict[str, Any]:
 
     async with httpx.AsyncClient() as client:
         res = await client.post(url, headers=get_headers(), json=payload, timeout=15.0)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text}"}
+        if err := _check_error(res):
+            return err
         return {"status": "sent", "session_id": clean_id}
 
 if __name__ == "__main__":

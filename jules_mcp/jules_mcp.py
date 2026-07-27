@@ -15,6 +15,9 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = JULES_API_KEY
     return headers
 
+def _clean_session_id(session_id: str) -> str:
+    return session_id.split('/')[-1] if '/' in session_id else session_id
+
 @mcp.tool()
 async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
     """List sessions with safe pagination and parameter coercion."""
@@ -36,7 +39,7 @@ async def get_session(session_id: str) -> Dict[str, Any]:
     if not session_id:
         return {"error": "session_id is required"}
     
-    clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
+    clean_id = _clean_session_id(session_id)
     url = f"{JULES_API_BASE}/sessions/{clean_id}"
 
     async with httpx.AsyncClient() as client:
@@ -51,7 +54,7 @@ async def list_activities(session_id: str, page_size: Optional[int] = 20, page_t
     if not session_id:
         return {"error": "session_id is required"}
 
-    clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
+    clean_id = _clean_session_id(session_id)
     params = {}
     if page_size is not None and isinstance(page_size, int):
         params["pageSize"] = page_size
@@ -72,7 +75,7 @@ async def approve_session_plan(session_id: str) -> Dict[str, Any]:
     if not session_id:
         return {"error": "session_id is required"}
 
-    clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
+    clean_id = _clean_session_id(session_id)
     url = f"{JULES_API_BASE}/sessions/{clean_id}:approvePlan"
 
     async with httpx.AsyncClient() as client:
@@ -87,7 +90,7 @@ async def send_session_message(session_id: str, message: str) -> Dict[str, Any]:
     if not session_id or not message:
         return {"error": "session_id and message are required"}
 
-    clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
+    clean_id = _clean_session_id(session_id)
     url = f"{JULES_API_BASE}/sessions/{clean_id}:sendMessage"
     payload = {"prompt": message}
 

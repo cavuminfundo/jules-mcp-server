@@ -1,7 +1,7 @@
 import os
 import httpx
 from typing import Optional, Dict, Any, List
-from fastmcp import FastMCP, Context
+from fastmcp import FastMCP
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 
@@ -76,28 +76,27 @@ async def get_session(session_id: str) -> Dict[str, Any]:
     return await _make_api_request("GET", url)
 
 @mcp.tool()
-async def list_activities(session_id: str, page_size: Optional[int] = 20, page_token: Optional[str] = None) -> Dict[str, Any]:
-    """List activities for a specific session."""
-    if not session_id:
-        return {"error": "session_id is required"}
+async def create_session(
+    source: str,
+    prompt: str,
+    title: Optional[str] = None,
+    starting_branch: Optional[str] = None,
+    require_plan_approval: bool = False
+) -> Dict[str, Any]:
+    """Create a new Jules session for a given source and prompt."""
+    payload: Dict[str, Any] = {
+        "prompt": prompt,
+        "sourceContext": {
+            "source": source
+        },
+        "requirePlanApproval": require_plan_approval
+    }
+    if title:
+        payload["title"] = title
+    if starting_branch:
+        payload["sourceContext"]["startingBranch"] = starting_branch
 
-    clean_id = _clean_session_id(session_id)
-    params = _get_pagination_params(page_size, page_token)
-
-    url = f"{JULES_API_BASE}/sessions/{clean_id}/activities"
-
-    return await _make_api_request("GET", url, params=params)
-
-@mcp.tool()
-async def approve_session_plan(session_id: str) -> Dict[str, Any]:
-    """Approve the generated plan for a session in a single native MCP call."""
-    if not session_id:
-        return {"error": "session_id is required"}
-
-    clean_id = _clean_session_id(session_id)
-    url = f"{JULES_API_BASE}/sessions/{clean_id}:approvePlan"
-
-    return await _make_api_request("POST", url, success_override={"status": "approved", "session_id": clean_id}, json={})
+    return await _make_api_request("POST", f"{JULES_API_BASE}/sessions", json=payload)
 
 @mcp.tool()
 async def delete_session(session_id: str) -> Dict[str, Any]:
@@ -137,6 +136,124 @@ async def clean_completed_sessions() -> Dict[str, Any]:
         "deleted_sessions": deleted_ids,
         "errors": errors
     }
+
+@mcp.tool()
+async def list_activities(session_id: str, page_size: Optional[int] = 20, page_token: Optional[str] = None) -> Dict[str, Any]:
+    """List activities for a specific session."""
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    clean_id = _clean_session_id(session_id)
+    params = _get_pagination_params(page_size, page_token)
+
+    url = f"{JULES_API_BASE}/sessions/{clean_id}/activities"
+
+    return await _make_api_request("GET", url, params=params)
+
+@mcp.tool()
+async def get_activity(session_id: str, activity_id: str) -> Dict[str, Any]:
+    """Get details for a single activity by ID."""
+    if not session_id or not activity_id:
+        return {"error": "session_id and activity_id are required"}
+    
+    clean_sid = _clean_session_id(session_id)
+    clean_aid = _clean_session_id(activity_id)
+    url = f"{JULES_API_BASE}/sessions/{clean_sid}/activities/{clean_aid}"
+
+    return await _make_api_request("GET", url)
+
+@mcp.tool()
+async def list_all_activities(session_id: str) -> Dict[str, Any]:
+    """List all activities for a session with automatic pagination."""
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    clean_sid = _clean_session_id(session_id)
+    all_activities = []
+    current_token = None
+
+    while True:
+        params = _get_pagination_params(50, current_token)
+        res = await _make_api_request("GET", f"{JULES_API_BASE}/sessions/{clean_sid}/activities", params=params)
+
+        if "error" in res:
+            return res if not all_activities else {"activities": all_activities, "error": res["error"]}
+
+        activities = res.get("activities", [])
+        all_activities.extend(activities)
+
+        current_token = res.get("nextPageToken")
+        if not current_token:
+            break
+
+    return {"activities": all_activities, "total": len(all_activities)}
+
+@mcp.tool()
+async def approve_session_plan(session_id: str) -> Dict[str, Any]:
+    """Approve the generated plan for a session in a single native MCP call."""
+    if not session_id:
+        return {"error": "session_id is required"}
+
+    clean_id = _clean_session_id(session_id)
+    url = f"{JULES_API_BASE}/sessions/{clean_id}:approvePlan"
+
+    return await _make_api_request("POST", url, success_override={"status": "approved", "session_id": clean_id}, json={})
+
+@mcp.tool()
+async def send_session_message(session_id: str, prompt: str = "", message: str = "") -> Dict[str, Any]:
+    """Send a user message (prompt) to an existing session."""
+    msg = prompt or message
+    if not session_id or not msg:
+        return {"error": "session_id and prompt/message are required"}
+
+    clean_id = _clean_session_id(session_id)
+    url = f"{JULES_API_BASE}/sessions/{clean_id}:sendMessage"
+    payload = {"prompt": msg}
+
+    return await _make_api_request("POST", url, success_override={"status": "sent", "session_id": clean_id}, json=payload)
+
+@mcp.tool()
+async def list_sources(page_size: Optional[int] = 50, page_token: Optional[str] = None, filter_str: Optional[str] = None) -> Dict[str, Any]:
+    """List sources with optional filter and pagination."""
+    params = _get_pagination_params(page_size, page_token)
+    if filter_str:
+        params["filter"] = filter_str
+
+    return await _make_api_request("GET", f"{JULES_API_BASE}/sources", params=params)
+
+@mcp.tool()
+async def get_source(source_id: str) -> Dict[str, Any]:
+    """Get details for a single source by ID."""
+    if not source_id:
+        return {"error": "source_id is required"}
+
+    clean_id = _clean_session_id(source_id)
+    return await _make_api_request("GET", f"{JULES_API_BASE}/sources/{clean_id}")
+
+@mcp.tool()
+async def get_all_sources(filter_str: Optional[str] = None) -> Dict[str, Any]:
+    """Get all sources with optional filtering (auto-pagination)."""
+    all_sources = []
+    current_token = None
+
+    while True:
+        params = _get_pagination_params(50, current_token)
+        if filter_str:
+            params["filter"] = filter_str
+
+        res = await _make_api_request("GET", f"{JULES_API_BASE}/sources", params=params)
+
+        if "error" in res:
+            return res if not all_sources else {"sources": all_sources, "error": res["error"]}
+
+        sources = res.get("sources", [])
+        all_sources.extend(sources)
+
+        current_token = res.get("nextPageToken")
+        if not current_token:
+            break
+
+    return {"sources": all_sources, "total": len(all_sources)}
 
 if __name__ == "__main__":
     mcp.run(transport="sse", port=8000, host="0.0.0.0")

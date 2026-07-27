@@ -1,6 +1,6 @@
 import os
 import httpx
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field
 

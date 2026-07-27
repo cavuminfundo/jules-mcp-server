@@ -2,7 +2,6 @@ import os
 import httpx
 from typing import Optional, Dict, Any, List
 from fastmcp import FastMCP, Context
-from pydantic import BaseModel, Field
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 

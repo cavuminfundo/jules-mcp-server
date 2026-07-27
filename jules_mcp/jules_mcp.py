@@ -1,6 +1,6 @@
 import os
 import httpx
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from fastmcp import FastMCP, Context
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,20 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = JULES_API_KEY
     return headers
 
+
+async def _make_request(method: str, url: str, **kwargs) -> Tuple[bool, Dict[str, Any]]:
+    async with httpx.AsyncClient() as client:
+        kwargs.setdefault("headers", get_headers())
+        kwargs.setdefault("timeout", 15.0)
+        res = await client.request(method, url, **kwargs)
+        if method == "POST" and res.status_code in (200, 204):
+            return False, {}
+        if method == "GET" and res.status_code != 200:
+            return True, {"error": f"API error {res.status_code}: {res.text}"}
+        if method == "POST" and res.status_code not in (200, 204):
+            return True, {"error": f"API error {res.status_code}: {res.text}"}
+        return False, res.json()
+
 @mcp.tool()
 async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
     """List sessions with safe pagination and parameter coercion."""
@@ -24,11 +38,8 @@ async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str]
     if page_token and isinstance(page_token, str):
         params["pageToken"] = page_token
 
-    async with httpx.AsyncClient() as client:
-        res = await client.get(f"{JULES_API_BASE}/sessions", headers=get_headers(), params=params, timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        return res.json()
+    is_error, res = await _make_request("GET", f"{JULES_API_BASE}/sessions", params=params)
+    return res
 
 @mcp.tool()
 async def get_session(session_id: str) -> Dict[str, Any]:
@@ -39,11 +50,8 @@ async def get_session(session_id: str) -> Dict[str, Any]:
     clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
     url = f"{JULES_API_BASE}/sessions/{clean_id}"
 
-    async with httpx.AsyncClient() as client:
-        res = await client.get(url, headers=get_headers(), timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        return res.json()
+    is_error, res = await _make_request("GET", url)
+    return res
 
 @mcp.tool()
 async def list_activities(session_id: str, page_size: Optional[int] = 20, page_token: Optional[str] = None) -> Dict[str, Any]:
@@ -60,11 +68,8 @@ async def list_activities(session_id: str, page_size: Optional[int] = 20, page_t
 
     url = f"{JULES_API_BASE}/sessions/{clean_id}/activities"
 
-    async with httpx.AsyncClient() as client:
-        res = await client.get(url, headers=get_headers(), params=params, timeout=15.0)
-        if res.status_code != 200:
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        return res.json()
+    is_error, res = await _make_request("GET", url, params=params)
+    return res
 
 @mcp.tool()
 async def approve_session_plan(session_id: str) -> Dict[str, Any]:
@@ -75,11 +80,8 @@ async def approve_session_plan(session_id: str) -> Dict[str, Any]:
     clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
     url = f"{JULES_API_BASE}/sessions/{clean_id}:approvePlan"
 
-    async with httpx.AsyncClient() as client:
-        res = await client.post(url, headers=get_headers(), json={}, timeout=15.0)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        return {"status": "approved", "session_id": clean_id}
+    is_error, res = await _make_request("POST", url, json={})
+    return res if is_error else {"status": "approved", "session_id": clean_id}
 
 @mcp.tool()
 async def send_session_message(session_id: str, message: str) -> Dict[str, Any]:
@@ -91,11 +93,8 @@ async def send_session_message(session_id: str, message: str) -> Dict[str, Any]:
     url = f"{JULES_API_BASE}/sessions/{clean_id}:sendMessage"
     payload = {"prompt": message}
 
-    async with httpx.AsyncClient() as client:
-        res = await client.post(url, headers=get_headers(), json=payload, timeout=15.0)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        return {"status": "sent", "session_id": clean_id}
+    is_error, res = await _make_request("POST", url, json=payload)
+    return res if is_error else {"status": "sent", "session_id": clean_id}
 
 if __name__ == "__main__":
     mcp.run(transport="sse", port=8000, host="0.0.0.0")

@@ -15,14 +15,18 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = JULES_API_KEY
     return headers
 
-@mcp.tool()
-async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
-    """List sessions with safe pagination and parameter coercion."""
+def build_pagination_params(page_size: Optional[int], page_token: Optional[str]) -> Dict[str, Any]:
     params = {}
     if page_size is not None and isinstance(page_size, int):
         params["pageSize"] = page_size
     if page_token and isinstance(page_token, str):
         params["pageToken"] = page_token
+    return params
+
+@mcp.tool()
+async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
+    """List sessions with safe pagination and parameter coercion."""
+    params = build_pagination_params(page_size, page_token)
 
     async with httpx.AsyncClient() as client:
         res = await client.get(f"{JULES_API_BASE}/sessions", headers=get_headers(), params=params, timeout=15.0)
@@ -52,11 +56,7 @@ async def list_activities(session_id: str, page_size: Optional[int] = 20, page_t
         return {"error": "session_id is required"}
 
     clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
-    params = {}
-    if page_size is not None and isinstance(page_size, int):
-        params["pageSize"] = page_size
-    if page_token and isinstance(page_token, str):
-        params["pageToken"] = page_token
+    params = build_pagination_params(page_size, page_token)
 
     url = f"{JULES_API_BASE}/sessions/{clean_id}/activities"
 

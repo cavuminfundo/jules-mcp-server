@@ -39,11 +39,30 @@ def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) 
     return params
 
 @mcp.tool()
-async def list_sessions(page_size: Optional[int] = 10, page_token: Optional[str] = None) -> Dict[str, Any]:
-    """List sessions with safe pagination and parameter coercion."""
-    params = _get_pagination_params(page_size, page_token)
+async def list_sessions(page_size: Optional[int] = 50, page_token: Optional[str] = None, fetch_all: bool = True) -> Dict[str, Any]:
+    """List sessions with optional automatic pagination to retrieve all sessions natively."""
+    if not fetch_all:
+        params = _get_pagination_params(page_size, page_token)
+        return await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
 
-    return await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
+    all_sessions = []
+    current_token = page_token
+
+    while True:
+        params = _get_pagination_params(page_size, current_token)
+        res = await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
+
+        if "error" in res:
+            return res if not all_sessions else {"sessions": all_sessions, "error": res["error"]}
+
+        sessions = res.get("sessions", [])
+        all_sessions.extend(sessions)
+
+        current_token = res.get("nextPageToken")
+        if not current_token:
+            break
+
+    return {"sessions": all_sessions, "total": len(all_sessions)}
 
 @mcp.tool()
 async def get_session(session_id: str) -> Dict[str, Any]:

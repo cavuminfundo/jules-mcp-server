@@ -31,7 +31,7 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
     client = _get_client()
     res = await client.request(method, url, **kwargs)
     if res.status_code not in (200, 204):
-        return {"error": f"API error {res.status_code}: {res.text}"}
+        return {"error": f"API error {res.status_code}"}
     if success_override is not None:
         return success_override
     return res.json()

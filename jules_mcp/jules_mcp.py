@@ -1,5 +1,6 @@
 import os
 import httpx
+import urllib.parse
 from typing import Optional, Dict, Any, List
 from fastmcp import FastMCP
 
@@ -29,7 +30,8 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
 
 
 def _clean_session_id(session_id: str) -> str:
-    return session_id.split('/')[-1] if '/' in session_id else session_id
+    clean_id = session_id.split('/')[-1] if '/' in session_id else session_id
+    return urllib.parse.quote(clean_id, safe='')
 
 def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) -> Dict[str, Any]:
     params = {}

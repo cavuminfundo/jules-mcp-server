@@ -24,17 +24,30 @@ def _get_client() -> httpx.AsyncClient:
     return _http_client
 
 async def _make_api_request(method: str, url: str, success_override: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
-    """Helper function to make API requests with standard error handling."""
-    kwargs.setdefault("timeout", 120.0)
+    """Helper function to make API requests with standard error handling and timeouts."""
+    kwargs.setdefault("timeout", 20.0)
     kwargs.setdefault("headers", get_headers())
 
     client = _get_client()
-    res = await client.request(method, url, **kwargs)
-    if res.status_code not in (200, 204):
-        return {"error": f"API error {res.status_code}"}
-    if success_override is not None:
-        return success_override
-    return res.json()
+    try:
+        res = await client.request(method, url, **kwargs)
+        if res.status_code not in (200, 204):
+            return {"error": f"API error {res.status_code}: {res.text[:200]}"}
+        if success_override is not None:
+            return success_override
+        try:
+            data = res.json()
+            if isinstance(data, dict):
+                return data
+            return {"data": data}
+        except Exception as json_err:
+            return {"error": f"Invalid JSON response: {str(json_err)}"}
+    except httpx.TimeoutException:
+        return {"error": "API request timed out (20s limit)"}
+    except httpx.RequestError as req_err:
+        return {"error": f"HTTP request failed: {str(req_err)}"}
+    except Exception as e:
+        return {"error": f"Unexpected error during API request: {str(e)}"}
 
 
 def _clean_session_id(session_id: str) -> str:
@@ -59,20 +72,34 @@ async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bo
 
     all_sessions = []
     current_token = token_arg
+    seen_tokens = set()
+    max_pages = 20
+    page_count = 0
 
-    while True:
+    while page_count < max_pages:
+        page_count += 1
+        if current_token:
+            if current_token in seen_tokens:
+                break
+            seen_tokens.add(current_token)
+
         params = _get_pagination_params(page_size, current_token)
         res = await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
 
-        if "error" in res:
-            return res if not all_sessions else {"sessions": all_sessions, "error": res["error"]}
+        if not isinstance(res, dict) or "error" in res:
+            err_msg = res.get("error", "Unknown API response format") if isinstance(res, dict) else "Non-dict API response"
+            return res if not all_sessions else {"sessions": all_sessions, "total": len(all_sessions), "error": err_msg}
 
-        sessions = res.get("sessions", [])
+        sessions = res.get("sessions")
+        if not isinstance(sessions, list) or not sessions:
+            break
+
         all_sessions.extend(sessions)
 
-        current_token = res.get("nextPageToken")
-        if not current_token:
+        next_token = res.get("nextPageToken")
+        if not next_token or next_token == current_token:
             break
+        current_token = next_token
 
     return {"sessions": all_sessions, "total": len(all_sessions)}
 
@@ -189,20 +216,34 @@ async def list_all_activities(session_id: str) -> Dict[str, Any]:
     clean_sid = _clean_session_id(session_id)
     all_activities = []
     current_token = None
+    seen_tokens = set()
+    max_pages = 20
+    page_count = 0
 
-    while True:
+    while page_count < max_pages:
+        page_count += 1
+        if current_token:
+            if current_token in seen_tokens:
+                break
+            seen_tokens.add(current_token)
+
         params = _get_pagination_params(50, current_token)
         res = await _make_api_request("GET", f"{JULES_API_BASE}/sessions/{clean_sid}/activities", params=params)
 
-        if "error" in res:
-            return res if not all_activities else {"activities": all_activities, "error": res["error"]}
+        if not isinstance(res, dict) or "error" in res:
+            err_msg = res.get("error", "Unknown API response format") if isinstance(res, dict) else "Non-dict API response"
+            return res if not all_activities else {"activities": all_activities, "total": len(all_activities), "error": err_msg}
 
-        activities = res.get("activities", [])
+        activities = res.get("activities")
+        if not isinstance(activities, list) or not activities:
+            break
+
         all_activities.extend(activities)
 
-        current_token = res.get("nextPageToken")
-        if not current_token:
+        next_token = res.get("nextPageToken")
+        if not next_token or next_token == current_token:
             break
+        current_token = next_token
 
     return {"activities": all_activities, "total": len(all_activities)}
 
@@ -253,23 +294,37 @@ async def get_all_sources(filter_str: Optional[str] = None) -> Dict[str, Any]:
     """Get all sources with optional filtering (auto-pagination)."""
     all_sources = []
     current_token = None
+    seen_tokens = set()
+    max_pages = 20
+    page_count = 0
 
-    while True:
+    while page_count < max_pages:
+        page_count += 1
+        if current_token:
+            if current_token in seen_tokens:
+                break
+            seen_tokens.add(current_token)
+
         params = _get_pagination_params(50, current_token)
         if filter_str:
             params["filter"] = filter_str
 
         res = await _make_api_request("GET", f"{JULES_API_BASE}/sources", params=params)
 
-        if "error" in res:
-            return res if not all_sources else {"sources": all_sources, "error": res["error"]}
+        if not isinstance(res, dict) or "error" in res:
+            err_msg = res.get("error", "Unknown API response format") if isinstance(res, dict) else "Non-dict API response"
+            return res if not all_sources else {"sources": all_sources, "total": len(all_sources), "error": err_msg}
 
-        sources = res.get("sources", [])
+        sources = res.get("sources")
+        if not isinstance(sources, list) or not sources:
+            break
+
         all_sources.extend(sources)
 
-        current_token = res.get("nextPageToken")
-        if not current_token:
+        next_token = res.get("nextPageToken")
+        if not next_token or next_token == current_token:
             break
+        current_token = next_token
 
     return {"sources": all_sources, "total": len(all_sources)}
 

@@ -1,13 +1,26 @@
 # Jules MCP Server
 
-Production-grade, robust Model Context Protocol (MCP) server for Google Jules API, powered by FastMCP.
+Production-grade Model Context Protocol (MCP) server for the Google Jules API, built with [FastMCP](https://github.com/jlowin/fastmcp).
 
 ## Features
-- **Native Single-Call Execution**: Approves plans, lists sessions, and sends messages directly via MCP.
-- **Strict Parameter Coercion**: Handles `null` or omitted parameters safely without RPC validation errors.
-- **FastMCP SSE Protocol**: Native Server-Sent Events endpoint (`http://<host>:8000/sse`).
+- **Native Single-Call Execution**: Approves plans, lists sessions, sends messages, and deletes completed sessions directly via MCP.
+- **Automatic Session Pagination**: Automatically fetches all active sessions natively without manual token loops.
+- **Session Cleanup**: Includes tools to scan and remove completed/terminated sessions (`clean_completed_sessions`).
+- **FastMCP SSE Transport**: Provides a native Server-Sent Events endpoint (`http://<host>:8000/sse`).
 
-## Docker Deployment
+## MCP Tools Reference
+
+| Tool Name | Description |
+| --- | --- |
+| `list_sessions(page_size, fetch_all)` | List sessions with optional automatic pagination (`fetch_all=true`). |
+| `get_session(session_id)` | Retrieve details for a specific session. |
+| `list_activities(session_id)` | Retrieve activity logs and plans (`plan_generated`). |
+| `approve_session_plan(session_id)` | Approve a pending session plan in a single call. |
+| `send_session_message(session_id, message)` | Send feedback or directives to an active session. |
+| `delete_session(session_id)` | Delete or archive a completed session. |
+| `clean_completed_sessions()` | Automatically scan and delete all `COMPLETED` or `TERMINATED` sessions. |
+
+## Quickstart & Docker Deployment
 
 ```yaml
 services:
@@ -21,25 +34,16 @@ services:
     restart: unless-stopped
 ```
 
-## 🛠️ Guida alla Configurazione per gli Agenti & MCP Client
+## Client Configuration Example
 
-Per evitare disallineamenti di parametri o navigazione "al buio", utilizzare le seguenti direttive standard:
+Add the server to your MCP client configuration (`mcp_config.json`):
 
-### 1. Repository Ufficiale GitHub
-- **Owner**: `cavuminfundo`
-- **Repo**: `jules-mcp-server`
-- **Workspace Locale**: `/home/federico/jules`
-
-### 2. Strumenti MCP Disponibili (`jules-mcp`)
-- **`list_sessions`**: Recupera le sessioni di Jules. Di default raccoglie **nativamente il 100% delle sessioni** in auto-paginazione (`fetch_all: true`).
-- **`get_session(session_id)`**: Dettagli di una singola sessione.
-- **`list_activities(session_id)`**: Attività e piani generati (`plan_generated`).
-- **`approve_session_plan(session_id)`**: Approvazione del piano di lavoro.
-- **`send_session_message(session_id, message)`**: Invio di direttive o messaggi di mentoring.
-- **`delete_session(session_id)`**: Eliminazione/archiviazione di una sessione terminata.
-- **`clean_completed_sessions()`**: Scansione ed eliminazione automatica di tutte le sessioni in stato `COMPLETED`, `SUCCEEDED` o `TERMINATED`.
-
-### 3. Regole per gli Agenti Supervisori
-1. **No Script Esterni**: Interagire unicamente tramite le chiamate MCP dirette (`jules-mcp` e `github-mcp-server`).
-2. **Single Worker**: Il Sub-Agente invocato per la supervisione agisce da esecutore diretto e non deve creare sub-agenti a cascata.
-3. **Paginazione Nativa**: Le risposte a `list_sessions` integrano già la totalità delle sessioni senza richiedere il ciclo manuale di `pageToken`.
+```json
+{
+  "mcpServers": {
+    "jules-mcp": {
+      "url": "http://localhost:8000/sse"
+    }
+  }
+}
+```

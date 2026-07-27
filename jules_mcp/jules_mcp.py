@@ -100,16 +100,43 @@ async def approve_session_plan(session_id: str) -> Dict[str, Any]:
     return await _make_api_request("POST", url, success_override={"status": "approved", "session_id": clean_id}, json={})
 
 @mcp.tool()
-async def send_session_message(session_id: str, message: str) -> Dict[str, Any]:
-    """Send a feedback message or mentoring directive to a Jules session."""
-    if not session_id or not message:
-        return {"error": "session_id and message are required"}
+async def delete_session(session_id: str) -> Dict[str, Any]:
+    """Delete a completed or terminated session by ID."""
+    if not session_id:
+        return {"error": "session_id is required"}
 
     clean_id = _clean_session_id(session_id)
-    url = f"{JULES_API_BASE}/sessions/{clean_id}:sendMessage"
-    payload = {"prompt": message}
+    url = f"{JULES_API_BASE}/sessions/{clean_id}"
 
-    return await _make_api_request("POST", url, success_override={"status": "sent", "session_id": clean_id}, json=payload)
+    return await _make_api_request("DELETE", url, success_override={"status": "deleted", "session_id": clean_id})
+
+@mcp.tool()
+async def clean_completed_sessions() -> Dict[str, Any]:
+    """Scans all sessions and deletes completed or terminated sessions automatically."""
+    sessions_res = await list_sessions(fetch_all=True)
+    if "error" in sessions_res:
+        return sessions_res
+
+    sessions = sessions_res.get("sessions", [])
+    deleted_ids = []
+    errors = []
+
+    for s in sessions:
+        sid = s.get("id") or s.get("name")
+        state = s.get("state", "").upper()
+        if state in ("COMPLETED", "SUCCEEDED", "TERMINATED", "CANCELLED", "CLOSED"):
+            del_res = await delete_session(sid)
+            if "error" in del_res:
+                errors.append({"session_id": sid, "error": del_res["error"]})
+            else:
+                deleted_ids.append(sid)
+
+    return {
+        "status": "success",
+        "deleted_count": len(deleted_ids),
+        "deleted_sessions": deleted_ids,
+        "errors": errors
+    }
 
 if __name__ == "__main__":
     mcp.run(transport="sse", port=8000, host="0.0.0.0")

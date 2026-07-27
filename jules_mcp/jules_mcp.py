@@ -14,18 +14,26 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = JULES_API_KEY
     return headers
 
+_http_client: Optional[httpx.AsyncClient] = None
+
+def _get_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient()
+    return _http_client
+
 async def _make_api_request(method: str, url: str, success_override: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
     """Helper function to make API requests with standard error handling."""
     kwargs.setdefault("timeout", 120.0)
     kwargs.setdefault("headers", get_headers())
 
-    async with httpx.AsyncClient() as client:
-        res = await client.request(method, url, **kwargs)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text}"}
-        if success_override is not None:
-            return success_override
-        return res.json()
+    client = _get_client()
+    res = await client.request(method, url, **kwargs)
+    if res.status_code not in (200, 204):
+        return {"error": f"API error {res.status_code}: {res.text}"}
+    if success_override is not None:
+        return success_override
+    return res.json()
 
 
 def _clean_session_id(session_id: str) -> str:

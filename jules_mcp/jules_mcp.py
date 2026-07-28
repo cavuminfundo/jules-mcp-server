@@ -8,6 +8,21 @@ from fastmcp import FastMCP
 import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 
+TOOLS_LIST_METADATA = [
+    {"name": "list_sessions", "description": "List Jules sessions with optional pagination.", "inputSchema": {"type": "object", "properties": {"page_size": {"type": "integer"}, "page_token": {"type": "string"}, "fetch_all": {"type": "boolean"}}}},
+    {"name": "get_session", "description": "Retrieve full details and current state for a specific session ID or name.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "create_session", "description": "Launch a new Jules AI session for a target repository.", "inputSchema": {"type": "object", "properties": {"source": {"type": "string"}, "prompt": {"type": "string"}, "title": {"type": "string"}, "starting_branch": {"type": "string"}, "require_plan_approval": {"type": "boolean"}}, "required": ["source", "prompt"]}},
+    {"name": "list_activities", "description": "Fetch activity history and generated plans for a session.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "page_size": {"type": "integer"}, "page_token": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "list_all_activities", "description": "Fetch all activity history for a session using automatic pagination.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "get_activity", "description": "Retrieve details for a specific activity ID within a session.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "activity_id": {"type": "string"}}, "required": ["session_id", "activity_id"]}},
+    {"name": "approve_session_plan", "description": "Approve a pending session plan in a single native call.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "send_session_message", "description": "Send mentoring feedback, answers, or directives to an active session.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}, "prompt": {"type": "string"}, "message": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "delete_session", "description": "Permanently delete a completed or inactive session.", "inputSchema": {"type": "object", "properties": {"session_id": {"type": "string"}}, "required": ["session_id"]}},
+    {"name": "clean_completed_sessions", "description": "Concurrently scan and delete all terminal/inactive sessions.", "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "list_sources", "description": "List accessible source GitHub repositories connected to Jules.", "inputSchema": {"type": "object", "properties": {"page_size": {"type": "integer"}, "page_token": {"type": "string"}, "filter_str": {"type": "string"}}}},
+    {"name": "get_all_sources", "description": "Retrieve all accessible source repositories with auto-pagination.", "inputSchema": {"type": "object", "properties": {"filter_str": {"type": "string"}}}}
+]
+
 class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
     """Middleware to catch POST requests on /messages or /messages/ (even with expired/cached SSE session IDs) and execute JSON-RPC tool calls directly without 404 error."""
     async def dispatch(self, request, call_next):
@@ -29,8 +44,10 @@ class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
                             res = await tool_fn(**args)
                             text_res = json.dumps(res) if not isinstance(res, str) else res
                             return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
-                    elif method in ("initialize", "tools/list"):
-                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+                    elif method == "tools/list":
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"tools": TOOLS_LIST_METADATA}, "id": req_id})
+                    elif method == "initialize":
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
             except Exception:
                 pass
         response = await call_next(request)
@@ -52,8 +69,10 @@ class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
                             res = await tool_fn(**args)
                             text_res = json.dumps(res) if not isinstance(res, str) else res
                             return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
-                    elif method in ("initialize", "tools/list"):
-                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+                    elif method == "tools/list":
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"tools": TOOLS_LIST_METADATA}, "id": req_id})
+                    elif method == "initialize":
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
             except Exception:
                 pass
         return response
@@ -68,8 +87,10 @@ async def direct_rpc_handler(request):
         method = data.get("method")
         req_id = data.get("id", 1)
         
-        if method in ("tools/list", "initialize"):
-            return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+        if method == "initialize":
+            return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {"tools": {}}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+        elif method == "tools/list":
+            return JSONResponse({"jsonrpc": "2.0", "result": {"tools": TOOLS_LIST_METADATA}, "id": req_id})
             
         elif method == "tools/call":
             params = data.get("params", {})

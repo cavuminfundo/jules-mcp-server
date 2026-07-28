@@ -17,35 +17,30 @@ def get_headers() -> Dict[str, str]:
         headers["X-Goog-Api-Key"] = api_key
     return headers
 
-_http_client: Optional[httpx.AsyncClient] = None
-
-def _get_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None:
-        _http_client = httpx.AsyncClient()
-    return _http_client
-
 async def _make_api_request(method: str, url: str, success_override: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
-    """Helper function to make API requests with standard error handling and timeouts."""
-    kwargs.setdefault("timeout", httpx.Timeout(20.0, connect=5.0))
-    kwargs.setdefault("headers", get_headers())
-
-    client = _get_client()
+    """Helper function to make API requests with rigid hard timeouts."""
+    headers = get_headers()
+    if "headers" in kwargs:
+        headers.update(kwargs.pop("headers"))
+    
+    timeout = httpx.Timeout(3.0, connect=2.0)
+    
     try:
-        res = await client.request(method, url)
-        if res.status_code not in (200, 204):
-            return {"error": f"API error {res.status_code}: {res.text[:200]}"}
-        if success_override is not None:
-            return success_override
-        try:
-            data = res.json()
-            if isinstance(data, dict):
-                return data
-            return {"data": data}
-        except Exception as json_err:
-            return {"error": f"Invalid JSON response: {str(json_err)}"}
-    except (httpx.TimeoutException, httpx.HTTPError, Exception) as e:
-        return {"error": "Timeout / Connection error", "sessions": []}
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            res = await asyncio.wait_for(client.request(method, url, headers=headers, **kwargs), timeout=4.0)
+            if res.status_code not in (200, 204):
+                return {"error": f"API error {res.status_code}: {res.text[:200]}"}
+            if success_override is not None:
+                return success_override
+            try:
+                data = res.json()
+                if isinstance(data, dict):
+                    return data
+                return {"data": data}
+            except Exception as json_err:
+                return {"error": f"Invalid JSON response: {str(json_err)}"}
+    except Exception as e:
+        return {"error": f"Timeout / Connection error: {str(e)}", "sessions": []}
 
 
 def _clean_session_id(session_id: str) -> str:
@@ -340,4 +335,4 @@ async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, 
     return {"sources": all_sources, "total": len(all_sources)}
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port=8000, host="0.0.0.0")
+    mcp.run(transport="http", port=8000, host="0.0.0.0")

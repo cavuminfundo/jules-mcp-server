@@ -23,11 +23,11 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
     if "headers" in kwargs:
         headers.update(kwargs.pop("headers"))
     
-    timeout = httpx.Timeout(3.0, connect=2.0)
+    timeout = httpx.Timeout(8.0, connect=3.0)
     
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
-            res = await asyncio.wait_for(client.request(method, url, headers=headers, **kwargs), timeout=4.0)
+            res = await asyncio.wait_for(client.request(method, url, headers=headers, **kwargs), timeout=10.0)
             if res.status_code not in (200, 204):
                 return {"error": f"API error {res.status_code}: {res.text[:200]}"}
             if success_override is not None:

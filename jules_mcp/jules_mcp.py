@@ -12,8 +12,9 @@ JULES_API_KEY = os.getenv("JULES_API_KEY", "")
 
 def get_headers() -> Dict[str, str]:
     headers = {"Content-Type": "application/json"}
-    if JULES_API_KEY:
-        headers["X-Goog-Api-Key"] = JULES_API_KEY
+    api_key = os.getenv("JULES_API_KEY", JULES_API_KEY)
+    if api_key:
+        headers["X-Goog-Api-Key"] = api_key
     return headers
 
 _http_client: Optional[httpx.AsyncClient] = None

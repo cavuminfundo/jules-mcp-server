@@ -9,9 +9,9 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 
 class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
-    """Middleware to catch POST requests on /messages (even with expired/cached SSE session IDs) and execute JSON-RPC tool calls directly."""
+    """Middleware to catch POST requests on /messages or /messages/ (even with expired/cached SSE session IDs) and execute JSON-RPC tool calls directly without 404 error."""
     async def dispatch(self, request, call_next):
-        if request.url.path.startswith("/messages") and request.method == "POST":
+        if request.method == "POST" and (request.url.path.startswith("/messages") or request.url.path.startswith("/sse")):
             from starlette.responses import JSONResponse
             try:
                 body = await request.body()
@@ -31,9 +31,32 @@ class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
                             return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
                     elif method in ("initialize", "tools/list"):
                         return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
-            except Exception as e:
+            except Exception:
                 pass
-        return await call_next(request)
+        response = await call_next(request)
+        if response.status_code == 404 and request.method == "POST" and "session_id" in request.url.query:
+            from starlette.responses import JSONResponse
+            try:
+                body = await request.body()
+                if body:
+                    import json
+                    data = json.loads(body)
+                    method = data.get("method")
+                    req_id = data.get("id", 1)
+                    if method == "tools/call":
+                        params = data.get("params", {})
+                        tool_name = params.get("name")
+                        args = params.get("arguments", {})
+                        tool_fn = globals().get(tool_name)
+                        if tool_fn and callable(tool_fn):
+                            res = await tool_fn(**args)
+                            text_res = json.dumps(res) if not isinstance(res, str) else res
+                            return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
+                    elif method in ("initialize", "tools/list"):
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+            except Exception:
+                pass
+        return response
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 

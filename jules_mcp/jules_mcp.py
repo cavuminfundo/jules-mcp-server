@@ -25,7 +25,7 @@ def _get_client() -> httpx.AsyncClient:
 
 async def _make_api_request(method: str, url: str, success_override: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
     """Helper function to make API requests with standard error handling and timeouts."""
-    kwargs.setdefault("timeout", 20.0)
+    kwargs.setdefault("timeout", httpx.Timeout(20.0, connect=5.0))
     kwargs.setdefault("headers", get_headers())
 
     client = _get_client()
@@ -42,12 +42,8 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
             return {"data": data}
         except Exception as json_err:
             return {"error": f"Invalid JSON response: {str(json_err)}"}
-    except httpx.TimeoutException:
-        return {"error": "API request timed out (20s limit)"}
-    except httpx.RequestError as req_err:
-        return {"error": f"HTTP request failed: {str(req_err)}"}
-    except Exception as e:
-        return {"error": f"Unexpected error during API request: {str(e)}"}
+    except (httpx.TimeoutException, httpx.HTTPError, Exception) as e:
+        return {"error": "Timeout / Connection error", "sessions": []}
 
 
 def _clean_session_id(session_id: str) -> str:
@@ -65,15 +61,15 @@ def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) 
 @mcp.tool()
 async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = True) -> Dict[str, Any]:
     """List sessions with optional automatic pagination to retrieve all sessions natively."""
-    token_arg = page_token if page_token else None
+    token = page_token if page_token else None
     if not fetch_all:
-        params = _get_pagination_params(page_size, token_arg)
+        params = _get_pagination_params(page_size, token)
         return await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
 
     all_sessions = []
-    current_token = token_arg
+    current_token = token
     seen_tokens = set()
-    max_pages = 20
+    max_pages = 5
     page_count = 0
 
     while page_count < max_pages:
@@ -87,8 +83,7 @@ async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bo
         res = await _make_api_request("GET", f"{JULES_API_BASE}/sessions", params=params)
 
         if not isinstance(res, dict) or "error" in res:
-            err_msg = res.get("error", "Unknown API response format") if isinstance(res, dict) else "Non-dict API response"
-            return res if not all_sessions else {"sessions": all_sessions, "total": len(all_sessions), "error": err_msg}
+            break
 
         sessions = res.get("sessions")
         if not isinstance(sessions, list) or not sessions:

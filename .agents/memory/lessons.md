@@ -27,4 +27,9 @@ This file serves as a memory bank to record past execution mistakes, lessons lea
 ## 5. Defensive Timeout and Error Handling in Jules MCP
 - **Issue**: Missing defensive timeouts and error handling leading to blocked threads during API communication.
 - **Root Cause**: `httpx` default timeouts can be indefinite if not properly configured, and errors weren't caught broadly enough.
-- **Checklist/Rule**: Always use strict, explicit timeouts for HTTP requests (`httpx.Timeout(20.0, connect=5.0)`) in `jules_mcp.py`. Wrap API calls in `try...except (httpx.TimeoutException, httpx.HTTPError, Exception)` to fail fast without blocking threads, and enforce a hard limit on pagination loops (e.g., `max_pages = 5`).
+- **Checklist/Rule**: Always use strict, explicit timeouts for HTTP requests (`httpx.Timeout(8.0, connect=3.0)`) in `jules_mcp.py`. Wrap API calls in `try...except (Exception, asyncio.CancelledError, asyncio.TimeoutError)` to fail fast without blocking threads.
+
+## 6. Mandatory Pre-Compiled Container Images Policy (GHCR)
+- **Issue**: Uso temporaneo di volume mounts in `compose.yaml` in produzione.
+- **Root Cause**: Non attendere il completamento della build Docker automatica su GHCR.
+- **Checklist/Rule**: In produzione (LXC 102 @ `192.168.88.103`), i container DEVONO utilizzare ESCLUSIVAMENTE immagini precompilate ufficiali da GitHub Container Registry (`image: ghcr.io/cavuminfundo/jules-mcp-server:latest`). È tassativamente vietato usare volume mounts di file python locali in produzione. Ogni modifica del codice deve essere committata su GitHub ed applicata via `docker compose pull`.

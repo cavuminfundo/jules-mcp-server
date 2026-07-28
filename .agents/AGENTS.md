@@ -33,3 +33,7 @@ When orchestrating and supervising Jules AI sessions via MCP:
 
 4. **Regola di Cancellazione Sessione su Rebase**:
    - Poiché Jules non può eseguire il git rebase, **se la PR generata da Jules richiede un rebase (presenta conflitti)**, eliminare immediatamente la sessione corrispettiva.
+
+## 🐳 Docker Deployment & Container Policy
+- **Immagini Precompilate Obbligatorie (GHCR)**: Il servizio `jules_mcp_server` su LXC 102 (`192.168.88.103`) DEVE sempre utilizzare l'immagine Docker ufficiale precompilata `ghcr.io/cavuminfundo/jules-mcp-server:latest`.
+- 🛑 **Divieto Mount Volumi Sostitutivi**: È TASSATIVAMENTE VIETATO usare volume mount di codice sorgente locale (`./jules_mcp.py:/app/...`) in produzione. Ogni modifica del codice deve essere committata su GitHub e distribuita tramite `docker compose pull` dell'immagine GHCR precompilata.

@@ -27,24 +27,17 @@ async def direct_rpc_handler(request):
         method = data.get("method")
         req_id = data.get("id", 1)
         
-        if method == "tools/list":
-            tools_list = []
-            for t in mcp._tools.values():
-                tools_list.append({
-                    "name": t.name,
-                    "description": t.description,
-                    "inputSchema": getattr(t, "parameters", {})
-                })
-            return JSONResponse({"jsonrpc": "2.0", "result": {"tools": tools_list}, "id": req_id})
+        if method in ("tools/list", "initialize"):
+            return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
             
         elif method == "tools/call":
             params = data.get("params", {})
             tool_name = params.get("name")
             args = params.get("arguments", {})
             
-            tool = mcp._tools.get(tool_name)
-            if tool:
-                res = await tool.fn(**args)
+            tool_fn = globals().get(tool_name)
+            if tool_fn and callable(tool_fn):
+                res = await tool_fn(**args)
                 import json
                 text_res = json.dumps(res) if not isinstance(res, str) else res
                 return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})

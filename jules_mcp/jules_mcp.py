@@ -9,10 +9,9 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 
 class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
-    """Middleware to catch 404s on expired/cached SSE session IDs and execute JSON-RPC tool calls directly."""
+    """Middleware to catch POST requests on /messages (even with expired/cached SSE session IDs) and execute JSON-RPC tool calls directly."""
     async def dispatch(self, request, call_next):
-        response = await call_next(request)
-        if request.url.path.startswith("/messages") and response.status_code == 404:
+        if request.url.path.startswith("/messages") and request.method == "POST":
             from starlette.responses import JSONResponse
             try:
                 body = await request.body()
@@ -34,7 +33,7 @@ class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
                         return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
             except Exception as e:
                 pass
-        return response
+        return await call_next(request)
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 

@@ -33,3 +33,8 @@ This file serves as a memory bank to record past execution mistakes, lessons lea
 - **Issue**: Uso temporaneo di volume mounts in `compose.yaml` in produzione.
 - **Root Cause**: Non attendere il completamento della build Docker automatica su GHCR.
 - **Checklist/Rule**: In produzione, i container DEVONO utilizzare ESCLUSIVAMENTE immagini precompilate ufficiali da GitHub Container Registry (`image: ghcr.io/cavuminfundo/jules-mcp-server:latest`). È tassativamente vietato usare volume mounts di file python locali in produzione. Ogni modifica del codice deve essere committata su GitHub ed applicata via `docker compose pull`.
+
+## 7. Preference for Stateless HTTP (/rpc) and Stdio Transports Over SSE
+- **Issue**: I client MCP (come Antigravity) possono mantenere in memoria un `session_id` SSE vecchio dopo il riavvio del container Docker, ricevendo 404 ed impallando l'interfaccia.
+- **Root Cause**: Le connessioni SSE sono stateful (con stato e con ID di sessione temporaneo del tubo di trasporto).
+- **Checklist/Rule**: Prediligere sempre configurazioni **Stateless HTTP (`/rpc`)** o **Stdio** in `mcp_config.json`. Il trasporto stateless non utilizza ID di sessione di connessione, garantendo risposte 200 OK istantanee (< 0.5s) e zero stalli per l'utente. Quando si testano comandi da agente, usare SEMPRE `timeout 5` per forzare la chiusura rapida.

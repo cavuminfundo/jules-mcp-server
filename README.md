@@ -82,22 +82,53 @@ docker run -d \
 
 ## 🔌 Client Integration Guide (`mcp_config.json`)
 
-Add `jules-mcp` to your AI client configuration (Antigravity, Claude Desktop, Cursor, VS Code, Goose):
+Add `jules-mcp` to your AI client configuration (Antigravity, Claude Desktop, Cursor, VS Code, Goose).
 
-### Native HTTP Transport (Fastest & Stateless)
+### Option A: Stateless HTTP JSON-RPC Transport (Recommended - Zero Session State)
+
+Stateless endpoint (`/rpc`) executing tool calls instantly without stateful SSE connection ID caching or reconnection timeouts:
 
 ```json
 {
   "mcpServers": {
     "jules-mcp": {
       "type": "http",
-      "url": "http://<SERVER_IP_OR_HOST>:8000/mcp"
+      "url": "http://<SERVER_IP_OR_HOST>:8000/rpc"
     }
   }
 }
 ```
 
-### SSE Transport (Server-Sent Events)
+### Option B: Native Stdio Transport Bridge (SSH / Docker)
+
+Direct process stdio stream execution bypassing HTTP network sockets completely:
+
+```json
+{
+  "mcpServers": {
+    "jules-mcp": {
+      "command": "ssh",
+      "args": [
+        "-o",
+        "StrictHostKeyChecking=no",
+        "user@<SERVER_IP_OR_HOST>",
+        "docker",
+        "exec",
+        "-i",
+        "jules_mcp_server",
+        "python3",
+        "-m",
+        "jules_mcp.jules_mcp",
+        "stdio"
+      ]
+    }
+  }
+}
+```
+
+### Option C: SSE Transport (Server-Sent Events)
+
+Stateful stream connection for streaming clients:
 
 ```json
 {

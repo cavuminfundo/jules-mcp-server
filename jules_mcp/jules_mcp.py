@@ -5,6 +5,23 @@ import urllib.parse
 from typing import Optional, Dict, Any, List
 from fastmcp import FastMCP
 
+import uuid
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SSESessionIdFixMiddleware(BaseHTTPMiddleware):
+    """Middleware to convert unhyphenated session_id hex strings to standard hyphenated UUIDs for FastMCP SSE compatibility."""
+    async def dispatch(self, request, call_next):
+        if request.url.path.startswith("/messages"):
+            session_id = request.query_params.get("session_id")
+            if session_id and "-" not in session_id:
+                try:
+                    formatted_id = str(uuid.UUID(session_id))
+                    scope = request.scope
+                    scope["query_string"] = f"session_id={formatted_id}".encode("ascii")
+                except Exception:
+                    pass
+        return await call_next(request)
+
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 
 JULES_API_BASE = os.getenv("JULES_API_BASE", "https://jules.googleapis.com/v1alpha")
@@ -335,4 +352,7 @@ async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, 
     return {"sources": all_sources, "total": len(all_sources)}
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", port=8000, host="0.0.0.0")
+    import uvicorn
+    app = mcp.http_app(transport="sse")
+    app.add_middleware(SSESessionIdFixMiddleware)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

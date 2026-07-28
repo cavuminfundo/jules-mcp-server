@@ -8,18 +8,13 @@ from fastmcp import FastMCP
 import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 
-class SSESessionIdFixMiddleware(BaseHTTPMiddleware):
-    """Middleware to convert unhyphenated session_id hex strings to standard hyphenated UUIDs for FastMCP SSE compatibility."""
+class AcceptHeaderMiddleware(BaseHTTPMiddleware):
+    """Middleware to force Accept header to application/json, text/event-stream for FastMCP HTTP compatibility."""
     async def dispatch(self, request, call_next):
-        if request.url.path.startswith("/messages"):
-            session_id = request.query_params.get("session_id")
-            if session_id and "-" not in session_id:
-                try:
-                    formatted_id = str(uuid.UUID(session_id))
-                    scope = request.scope
-                    scope["query_string"] = f"session_id={formatted_id}".encode("ascii")
-                except Exception:
-                    pass
+        headers = list(request.scope.get("headers", []))
+        new_headers = [(k, v) for k, v in headers if k.lower() != b"accept"]
+        new_headers.append((b"accept", b"application/json, text/event-stream"))
+        request.scope["headers"] = new_headers
         return await call_next(request)
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
@@ -353,6 +348,6 @@ async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, 
 
 if __name__ == "__main__":
     import uvicorn
-    app = mcp.http_app(transport="sse")
-    app.add_middleware(SSESessionIdFixMiddleware)
+    app = mcp.http_app(transport="http")
+    app.add_middleware(AcceptHeaderMiddleware)
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -113,17 +113,17 @@ async def create_session(source: str,
     starting_branch: str = "",
     require_plan_approval: bool = False, _meta: Any = None) -> Dict[str, Any]:
     """Create a new Jules session for a given source and prompt."""
+    branch = starting_branch if starting_branch else "main"
     payload: Dict[str, Any] = {
         "prompt": prompt,
         "sourceContext": {
-            "source": source
+            "source": source,
+            "startingBranch": branch
         },
         "requirePlanApproval": require_plan_approval
     }
     if title:
         payload["title"] = title
-    if starting_branch:
-        payload["sourceContext"]["startingBranch"] = starting_branch
 
     return await _make_api_request("POST", f"{JULES_API_BASE}/sessions", json=payload)
 

@@ -19,6 +19,41 @@ class AcceptHeaderMiddleware(BaseHTTPMiddleware):
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 
+@mcp.custom_route("/rpc", methods=["POST"])
+async def direct_rpc_handler(request):
+    from starlette.responses import JSONResponse
+    try:
+        data = await request.json()
+        method = data.get("method")
+        req_id = data.get("id", 1)
+        
+        if method == "tools/list":
+            tools_list = []
+            for t in mcp._tools.values():
+                tools_list.append({
+                    "name": t.name,
+                    "description": t.description,
+                    "inputSchema": getattr(t, "parameters", {})
+                })
+            return JSONResponse({"jsonrpc": "2.0", "result": {"tools": tools_list}, "id": req_id})
+            
+        elif method == "tools/call":
+            params = data.get("params", {})
+            tool_name = params.get("name")
+            args = params.get("arguments", {})
+            
+            tool = mcp._tools.get(tool_name)
+            if tool:
+                res = await tool.fn(**args)
+                import json
+                text_res = json.dumps(res) if not isinstance(res, str) else res
+                return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
+            return JSONResponse({"jsonrpc": "2.0", "error": {"code": -32601, "message": f"Tool '{tool_name}' not found"}, "id": req_id}, status_code=404)
+            
+        return JSONResponse({"jsonrpc": "2.0", "error": {"code": -32601, "message": f"Method '{method}' not supported"}, "id": req_id}, status_code=400)
+    except Exception as e:
+        return JSONResponse({"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}, "id": 1}, status_code=500)
+
 JULES_API_BASE = os.getenv("JULES_API_BASE", "https://jules.googleapis.com/v1alpha")
 JULES_API_KEY = os.getenv("JULES_API_KEY", "")
 

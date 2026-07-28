@@ -8,14 +8,33 @@ from fastmcp import FastMCP
 import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 
-class AcceptHeaderMiddleware(BaseHTTPMiddleware):
-    """Middleware to force Accept header to application/json, text/event-stream for FastMCP HTTP compatibility."""
+class CatchAllMessagesFallbackMiddleware(BaseHTTPMiddleware):
+    """Middleware to catch 404s on expired/cached SSE session IDs and execute JSON-RPC tool calls directly."""
     async def dispatch(self, request, call_next):
-        headers = list(request.scope.get("headers", []))
-        new_headers = [(k, v) for k, v in headers if k.lower() != b"accept"]
-        new_headers.append((b"accept", b"application/json, text/event-stream"))
-        request.scope["headers"] = new_headers
-        return await call_next(request)
+        response = await call_next(request)
+        if request.url.path.startswith("/messages") and response.status_code == 404:
+            from starlette.responses import JSONResponse
+            try:
+                body = await request.body()
+                if body:
+                    import json
+                    data = json.loads(body)
+                    method = data.get("method")
+                    req_id = data.get("id", 1)
+                    if method == "tools/call":
+                        params = data.get("params", {})
+                        tool_name = params.get("name")
+                        args = params.get("arguments", {})
+                        tool_fn = globals().get(tool_name)
+                        if tool_fn and callable(tool_fn):
+                            res = await tool_fn(**args)
+                            text_res = json.dumps(res) if not isinstance(res, str) else res
+                            return JSONResponse({"jsonrpc": "2.0", "result": {"content": [{"type": "text", "text": text_res}]}, "id": req_id})
+                    elif method in ("initialize", "tools/list"):
+                        return JSONResponse({"jsonrpc": "2.0", "result": {"protocolVersion": "2024-11-05", "capabilities": {}, "serverInfo": {"name": "Jules MCP Server", "version": "0.2.0"}}, "id": req_id})
+            except Exception as e:
+                pass
+        return response
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 
@@ -380,5 +399,5 @@ if __name__ == "__main__":
         mcp.run(transport="stdio")
     else:
         app = mcp.http_app(transport="http")
-        app.add_middleware(AcceptHeaderMiddleware)
+        app.add_middleware(CatchAllMessagesFallbackMiddleware)
         uvicorn.run(app, host="0.0.0.0", port=8000)

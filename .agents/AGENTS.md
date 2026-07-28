@@ -21,16 +21,17 @@ Always consult `.agents/memory/lessons.md` at the start of any task, and append 
 When orchestrating and supervising Jules AI sessions via MCP:
 
 1. **Session & Activity Inspection (`jules-mcp`)**:
-   - Invocare `list_sessions` per ottenere l'elenco delle sessioni attive.
+   - Invocare `list_sessions(fetch_all=False)` per ottenere l'elenco delle sessioni attive.
    - Usare `list_activities(session_id=...)` per ispezionare le attività ed i piani proposti (`plan_generated`) o i blocchi in attesa.
 
-2. **Plan Mentoring & Feasibility Check**:
+2. **Session Cleanup (Chiuse / Inattive)**:
+   - Eliminare tutte le sessioni chiuse o inattive (`COMPLETED`, `FINISHED`, `TERMINATED`, `CANCELLED`, `FAILED`, `EXPIRED`, `CLOSED`) che **NON abbiano in sospeso la richiesta di approvazione piano o di input utente**.
+
+3. **Plan Mentoring & Feasibility Check (Fino alla PR)**:
    - Valutare i piani estratti confrontandoli con le convenzioni del repository (`AGENTS.md`, `.agents/memory/lessons.md`).
    - Se il piano è consono e ben strutturato, approvarlo tramite `approve_session_plan(session_id=...)`.
-   - Se il piano presenta lacune, deviazioni o richiede chiarimenti, inviare indicazioni puntuali di mentoring tramite `send_session_message(session_id=..., message=...)`.
+   - Se il piano presenta lacune o deviazioni, inviare indicazioni puntuali di mentoring tramite `send_session_message(session_id=..., message=...)` guidando Jules fino all'apertura della PR.
+   - 🛑 **NO PR MERGING**: La skill NON effettua il merge delle Pull Request su GitHub.
 
-3. **User Input / Feedback Mentoring**:
-   - Per le sessioni in `AWAITING_USER_FEEDBACK` o `AWAITING_INPUT`, leggere l'ultima richiesta e fornire indicazioni operative via `send_session_message` per far avanzare Jules.
-
-4. **Post-PR & Completed Session Cleanup**:
-   - Quando Jules ha ultimato il lavoro, aperto la PR o completato il task (`COMPLETED`, `FINISHED`, `TERMINATED`), eliminare la sessione via `delete_session(session_id=...)` per mantenere pulita l'interfaccia di Jules.
+4. **Regola di Cancellazione Sessione su Rebase**:
+   - Poiché Jules non può eseguire il git rebase, **se la PR generata da Jules richiede un rebase (presenta conflitti)**, eliminare immediatamente la sessione corrispettiva via `delete_session(session_id=...)`.

@@ -335,4 +335,4 @@ async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, 
     return {"sources": all_sources, "total": len(all_sources)}
 
 if __name__ == "__main__":
-    mcp.run(transport="http", port=8000, host="0.0.0.0")
+    mcp.run(transport="sse", port=8000, host="0.0.0.0")

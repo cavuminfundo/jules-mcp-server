@@ -1,40 +1,51 @@
 # Jules MCP Server
 
-Production-grade Model Context Protocol (MCP) server for the Google Jules API, built with [FastMCP](https://github.com/jlowin/fastmcp).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![FastMCP](https://img.shields.io/badge/FastMCP-0.2.0-green.svg)](https://github.com/jlowin/fastmcp)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/cavuminfundo/jules-mcp-server/pkgs/container/jules-mcp-server)
 
-## Features
-- **Native Single-Call Execution**: Approves plans, lists sessions, sends messages, and deletes completed sessions directly via MCP.
-- **Sub-Second Fast Response**: Single-page fast listing (`fetch_all=False` by default) returning JSON results in <200ms.
-- **Hardened Timeout & Connection Resilience**: Isolated HTTP client requests with strict timeouts (`httpx.Timeout(8.0)`) catching `asyncio.CancelledError` and `TimeoutError` to prevent interface hanging.
-- **Automatic Concurrent Session Cleanup**: Deletes terminal sessions (`COMPLETED`, `TERMINATED`, `FAILED`, `CANCELLED`, `EXPIRED`, etc.) in parallel via `asyncio.gather` (`clean_completed_sessions`).
-- **Flexible Transport**: Supports both native HTTP (`/mcp`), SSE (`/sse`), and stdio bridges.
+Production-grade [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for [Google Jules AI](https://jules.google.com), built with [FastMCP](https://github.com/jlowin/fastmcp).
+
+Provides an enterprise-ready bridge for AI Agents (Antigravity, Claude Desktop, Cursor, VS Code, Goose) to inspect, mentor, plan, and automate Google Jules execution sessions natively via HTTP, SSE, or Stdio transport.
 
 ---
 
-## MCP Tools Reference
+## Key Features
 
-| Tool Name | Description | Parameters |
+- ⚡ **Sub-Second Response Times**: Single-page fast listing (`fetch_all=False` by default) returning session data in <200ms.
+- 🛡️ **Hardened Network Resilience**: Per-request isolated HTTP clients (`httpx.AsyncClient`) with strict timeouts (`httpx.Timeout(8.0)`) catching `asyncio.CancelledError` and `TimeoutError` to guarantee non-blocking agent turns.
+- 🧹 **Concurrent Automatic Session Cleanup**: Parallel scanning and deletion of terminal/inactive sessions (`COMPLETED`, `FINISHED`, `TERMINATED`, `CANCELLED`, `FAILED`, `EXPIRED`, `CLOSED`) using `asyncio.gather` (`clean_completed_sessions`).
+- 🔒 **Type Sanitization**: Primitive string and boolean defaults (`title: ""`, `starting_branch: "main"`, `fetch_all: false`) eliminating `null` validation errors in client schema parsers.
+- 🔌 **Multi-Transport Support**: Native HTTP JSON-RPC (`/mcp`), Server-Sent Events (`/sse`), and Stdio bridge support.
+- 🐳 **Production Docker Image**: Pre-compiled multi-arch image hosted on GitHub Container Registry (`ghcr.io/cavuminfundo/jules-mcp-server:latest`).
+
+---
+
+## 🛠️ MCP Tools Reference
+
+| Tool Name | Description | Default Parameters |
 | --- | --- | --- |
-| `list_sessions` | List sessions with optional automatic pagination (`fetch_all=False` for sub-second fast listing). | `page_size: 50`, `page_token: ""`, `fetch_all: false` |
-| `get_session` | Retrieve details for a specific session by ID or resource name. | `session_id: string` |
-| `create_session` | Create a new session for a target source repository. | `source: string`, `prompt: string`, `title: ""`, `starting_branch: "main"`, `require_plan_approval: false` |
-| `list_activities` | Retrieve activity logs and generated plans for a session. | `session_id: string`, `page_size: 20`, `page_token: ""` |
-| `list_all_activities` | Automatically fetch all activity logs for a session. | `session_id: string` |
-| `get_activity` | Get details for a specific activity ID. | `session_id: string`, `activity_id: string` |
-| `approve_session_plan` | Approve a generated session plan in a single call. | `session_id: string` |
-| `send_session_message` | Send guidance or answers to an active session waiting for feedback. | `session_id: string`, `prompt: string` / `message: string` |
-| `delete_session` | Delete a completed or terminated session by ID. | `session_id: string` |
-| `clean_completed_sessions` | Automatically scan and delete all terminal/inactive sessions concurrently. | *None* |
-| `list_sources` | List accessible source repositories. | `page_size: 50`, `page_token: ""`, `filter_str: ""` |
+| `list_sessions` | List Jules sessions with fast single-page default or optional auto-pagination. | `page_size: 50`, `page_token: ""`, `fetch_all: false` |
+| `get_session` | Retrieve full details and current state for a specific session ID or name. | `session_id: string` |
+| `create_session` | Launch a new Jules AI session for a target repository. | `source: string`, `prompt: string`, `title: ""`, `starting_branch: "main"`, `require_plan_approval: false` |
+| `list_activities` | Fetch activity history and generated plans for a session. | `session_id: string`, `page_size: 20`, `page_token: ""` |
+| `list_all_activities` | Fetch all activity history for a session using automatic pagination. | `session_id: string` |
+| `get_activity` | Retrieve details for a specific activity ID within a session. | `session_id: string`, `activity_id: string` |
+| `approve_session_plan` | Approve a pending session plan in a single native call. | `session_id: string` |
+| `send_session_message` | Send mentoring feedback, answers, or directives to an active session. | `session_id: string`, `message: string` |
+| `delete_session` | Permanently delete a completed or inactive session. | `session_id: string` |
+| `clean_completed_sessions` | Concurrently scan and delete all terminal/inactive sessions. | *None* |
+| `list_sources` | List accessible source GitHub repositories connected to Jules. | `page_size: 50`, `page_token: ""`, `filter_str: ""` |
 | `get_all_sources` | Retrieve all accessible source repositories with auto-pagination. | `filter_str: ""` |
 
 ---
 
-## 🚀 Deployment & Container Setup
+## 🚀 Quickstart & Container Deployment
 
-### 1. Docker Compose (Production)
+### 1. Docker Compose (Recommended Production Setup)
 
-Deploy using the pre-compiled image from GitHub Container Registry (GHCR):
+Create a `docker-compose.yml` file:
 
 ```yaml
 services:
@@ -51,20 +62,29 @@ services:
     restart: unless-stopped
 ```
 
-Start the container:
+Run the container:
 ```bash
 docker compose up -d
 ```
 
+### 2. Standalone Docker Run
+
+```bash
+docker run -d \
+  --name jules_mcp_server \
+  -e JULES_API_KEY="your_google_jules_api_key_here" \
+  -p 8000:8000 \
+  --restart unless-stopped \
+  ghcr.io/cavuminfundo/jules-mcp-server:latest
+```
+
 ---
 
-## 🔌 MCP Client Configuration Guide (`mcp_config.json`)
+## 🔌 Client Integration Guide (`mcp_config.json`)
 
-You can connect your AI Agent or MCP Client (Antigravity, Claude Desktop, Cursor, etc.) using any of the following transport methods:
+Add `jules-mcp` to your AI client configuration (Antigravity, Claude Desktop, Cursor, VS Code, Goose):
 
-### Option A: Native HTTP Transport (Recommended & Super Fast)
-
-Direct HTTP JSON-RPC endpoint without session state overhead:
+### Native HTTP Transport (Fastest & Stateless)
 
 ```json
 {
@@ -77,9 +97,7 @@ Direct HTTP JSON-RPC endpoint without session state overhead:
 }
 ```
 
-### Option B: Native SSE Transport
-
-Server-Sent Events connection:
+### SSE Transport (Server-Sent Events)
 
 ```json
 {
@@ -92,9 +110,7 @@ Server-Sent Events connection:
 }
 ```
 
-### Option C: Stdio Bridge via `mcp-remote` (npx)
-
-If your client only supports stdio process execution:
+### Stdio Transport Bridge (`mcp-remote`)
 
 ```json
 {
@@ -117,14 +133,20 @@ If your client only supports stdio process execution:
 ## 🛠️ Local Development & Testing
 
 ```bash
-# Clone the repository
+# Clone the repo
 git clone https://github.com/cavuminfundo/jules-mcp-server.git
 cd jules-mcp-server
 
-# Set environment variable
+# Set environment API key
 export JULES_API_KEY="your_google_jules_api_key"
 
-# Install dependencies and run with uv
+# Install dependencies and start server with uv
 uv sync
 uv run python -m jules_mcp.jules_mcp
 ```
+
+---
+
+## 📄 License
+
+Distributed under the [MIT License](LICENSE). See `LICENSE` for more information.

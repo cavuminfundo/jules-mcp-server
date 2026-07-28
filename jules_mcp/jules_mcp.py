@@ -39,7 +39,7 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
                 return {"data": data}
             except Exception as json_err:
                 return {"error": f"Invalid JSON response: {str(json_err)}"}
-    except Exception as e:
+    except (Exception, asyncio.CancelledError, asyncio.TimeoutError) as e:
         return {"error": f"Timeout / Connection error: {str(e)}", "sessions": []}
 
 
@@ -166,8 +166,8 @@ async def clean_completed_sessions(_meta: Any = None) -> Dict[str, Any]:
 
     async def _delete_one(sid: str):
         try:
-            return sid, await asyncio.wait_for(delete_session(sid), timeout=5.0)
-        except Exception as e:
+            return sid, await asyncio.wait_for(delete_session(sid), timeout=3.0)
+        except (Exception, asyncio.CancelledError, asyncio.TimeoutError) as e:
             return sid, {"error": str(e)}
 
     results = await asyncio.gather(*[_delete_one(sid) for sid in to_delete], return_exceptions=True)

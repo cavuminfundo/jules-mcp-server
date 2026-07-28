@@ -7,16 +7,6 @@ from fastmcp import FastMCP
 
 mcp = FastMCP("Jules MCP Server", version="0.2.0")
 
-@mcp.resource("schema")
-def get_schema_resource() -> str:
-    """Return JSON schema description for MCP client resource discovery."""
-    return '{"status": "ok", "name": "Jules MCP Server"}'
-
-@mcp.resource("{path:path}")
-def catchall_resource(path: str) -> str:
-    """Catch-all resource handler preventing hangs on resource discovery."""
-    return f'{{"status": "ok", "path": "{path}"}}'
-
 JULES_API_BASE = os.getenv("JULES_API_BASE", "https://jules.googleapis.com/v1alpha")
 JULES_API_KEY = os.getenv("JULES_API_KEY", "")
 

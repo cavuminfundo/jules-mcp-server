@@ -61,7 +61,7 @@ def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) 
     return params
 
 @mcp.tool()
-async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = False) -> Dict[str, Any]:
+async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = False, _meta: Any = None) -> Dict[str, Any]:
     """List sessions with optional automatic pagination to retrieve sessions natively."""
     token = page_token if page_token else None
     if not fetch_all:
@@ -101,7 +101,7 @@ async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bo
     return {"sessions": all_sessions, "total": len(all_sessions)}
 
 @mcp.tool()
-async def get_session(session_id: str) -> Dict[str, Any]:
+async def get_session(session_id: str, _meta: Any = None) -> Dict[str, Any]:
     """Get details for a single session by ID or resource name."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -116,7 +116,7 @@ async def create_session(source: str,
     prompt: str,
     title: str = "",
     starting_branch: str = "",
-    require_plan_approval: bool = False) -> Dict[str, Any]:
+    require_plan_approval: bool = False, _meta: Any = None) -> Dict[str, Any]:
     """Create a new Jules session for a given source and prompt."""
     payload: Dict[str, Any] = {
         "prompt": prompt,
@@ -133,7 +133,7 @@ async def create_session(source: str,
     return await _make_api_request("POST", f"{JULES_API_BASE}/sessions", json=payload)
 
 @mcp.tool()
-async def delete_session(session_id: str) -> Dict[str, Any]:
+async def delete_session(session_id: str, _meta: Any = None) -> Dict[str, Any]:
     """Delete a completed or terminated session by ID."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -144,7 +144,7 @@ async def delete_session(session_id: str) -> Dict[str, Any]:
     return await _make_api_request("DELETE", url, success_override={"status": "deleted", "session_id": clean_id})
 
 @mcp.tool()
-async def clean_completed_sessions() -> Dict[str, Any]:
+async def clean_completed_sessions(_meta: Any = None) -> Dict[str, Any]:
     """Scans all sessions and deletes completed, terminated, failed, or inactive sessions automatically."""
     sessions_res = await list_sessions(fetch_all=False)
     if "error" in sessions_res:
@@ -194,7 +194,7 @@ async def clean_completed_sessions() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def list_activities(session_id: str, page_size: int = 20, page_token: str = "") -> Dict[str, Any]:
+async def list_activities(session_id: str, page_size: int = 20, page_token: str = "", _meta: Any = None) -> Dict[str, Any]:
     """List activities for a specific session."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -207,7 +207,7 @@ async def list_activities(session_id: str, page_size: int = 20, page_token: str 
     return await _make_api_request("GET", url, params=params)
 
 @mcp.tool()
-async def get_activity(session_id: str, activity_id: str) -> Dict[str, Any]:
+async def get_activity(session_id: str, activity_id: str, _meta: Any = None) -> Dict[str, Any]:
     """Get details for a single activity by ID."""
     if not session_id or not activity_id:
         return {"error": "session_id and activity_id are required"}
@@ -219,7 +219,7 @@ async def get_activity(session_id: str, activity_id: str) -> Dict[str, Any]:
     return await _make_api_request("GET", url)
 
 @mcp.tool()
-async def list_all_activities(session_id: str) -> Dict[str, Any]:
+async def list_all_activities(session_id: str, _meta: Any = None) -> Dict[str, Any]:
     """List all activities for a session with automatic pagination."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -259,7 +259,7 @@ async def list_all_activities(session_id: str) -> Dict[str, Any]:
     return {"activities": all_activities, "total": len(all_activities)}
 
 @mcp.tool()
-async def approve_session_plan(session_id: str) -> Dict[str, Any]:
+async def approve_session_plan(session_id: str, _meta: Any = None) -> Dict[str, Any]:
     """Approve the generated plan for a session in a single native MCP call."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -270,7 +270,7 @@ async def approve_session_plan(session_id: str) -> Dict[str, Any]:
     return await _make_api_request("POST", url, success_override={"status": "approved", "session_id": clean_id}, json={})
 
 @mcp.tool()
-async def send_session_message(session_id: str, prompt: str = "", message: str = "") -> Dict[str, Any]:
+async def send_session_message(session_id: str, prompt: str = "", message: str = "", _meta: Any = None) -> Dict[str, Any]:
     """Send a user message (prompt) to an existing session."""
     msg = prompt or message
     if not session_id or not msg:
@@ -283,7 +283,7 @@ async def send_session_message(session_id: str, prompt: str = "", message: str =
     return await _make_api_request("POST", url, success_override={"status": "sent", "session_id": clean_id}, json=payload)
 
 @mcp.tool()
-async def list_sources(page_size: int = 50, page_token: str = "", filter_str: str = "") -> Dict[str, Any]:
+async def list_sources(page_size: int = 50, page_token: str = "", filter_str: str = "", _meta: Any = None) -> Dict[str, Any]:
     """List sources with optional filter and pagination."""
     params = _get_pagination_params(page_size, page_token)
     if filter_str:
@@ -292,7 +292,7 @@ async def list_sources(page_size: int = 50, page_token: str = "", filter_str: st
     return await _make_api_request("GET", f"{JULES_API_BASE}/sources", params=params)
 
 @mcp.tool()
-async def get_source(source_id: str) -> Dict[str, Any]:
+async def get_source(source_id: str, _meta: Any = None) -> Dict[str, Any]:
     """Get details for a single source by ID."""
     if not source_id:
         return {"error": "source_id is required"}
@@ -301,7 +301,7 @@ async def get_source(source_id: str) -> Dict[str, Any]:
     return await _make_api_request("GET", f"{JULES_API_BASE}/sources/{clean_id}")
 
 @mcp.tool()
-async def get_all_sources(filter_str: str = "") -> Dict[str, Any]:
+async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, Any]:
     """Get all sources with optional filtering (auto-pagination)."""
     all_sources = []
     current_token = None

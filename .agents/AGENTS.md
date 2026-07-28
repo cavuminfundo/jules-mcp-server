@@ -21,7 +21,7 @@ Always consult `.agents/memory/lessons.md` at the start of any task, and append 
 When orchestrating and supervising Jules AI sessions via MCP:
 
 1. **Session & Activity Inspection (`jules-mcp`)**:
-   - Invocare `list_sessions(fetch_all=False)` per ottenere l'elenco delle sessioni attive.
+   - Invocare `list_sessions()` (senza argomenti superflui) per ottenere l'elenco delle sessioni attive.
    - Usare `list_activities(session_id=...)` per ispezionare le attività ed i piani proposti (`plan_generated`) o i blocchi in attesa.
 
 2. **Session Cleanup (Chiuse / Inattive)**:

@@ -375,7 +375,10 @@ async def get_all_sources(filter_str: str = "", _meta: Any = None) -> Dict[str, 
     return {"sources": all_sources, "total": len(all_sources)}
 
 if __name__ == "__main__":
-    import uvicorn
-    app = mcp.http_app(transport="http")
-    app.add_middleware(AcceptHeaderMiddleware)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import sys, uvicorn
+    if len(sys.argv) > 1 and sys.argv[1] == "stdio":
+        mcp.run(transport="stdio")
+    else:
+        app = mcp.http_app(transport="http")
+        app.add_middleware(AcceptHeaderMiddleware)
+        uvicorn.run(app, host="0.0.0.0", port=8000)

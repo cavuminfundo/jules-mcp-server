@@ -1,4 +1,5 @@
 import os
+import asyncio
 import httpx
 import urllib.parse
 from typing import Optional, Dict, Any, List
@@ -30,7 +31,7 @@ async def _make_api_request(method: str, url: str, success_override: Optional[Di
 
     client = _get_client()
     try:
-        res = await client.request(method, url, **kwargs)
+        res = await client.request(method, url)
         if res.status_code not in (200, 204):
             return {"error": f"API error {res.status_code}: {res.text[:200]}"}
         if success_override is not None:
@@ -59,8 +60,8 @@ def _get_pagination_params(page_size: Optional[int], page_token: Optional[str]) 
     return params
 
 @mcp.tool()
-async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = True) -> Dict[str, Any]:
-    """List sessions with optional automatic pagination to retrieve all sessions natively."""
+async def list_sessions(page_size: int = 50, page_token: str = "", fetch_all: bool = False) -> Dict[str, Any]:
+    """List sessions with optional automatic pagination to retrieve sessions natively."""
     token = page_token if page_token else None
     if not fetch_all:
         params = _get_pagination_params(page_size, token)
@@ -110,13 +111,11 @@ async def get_session(session_id: str) -> Dict[str, Any]:
     return await _make_api_request("GET", url)
 
 @mcp.tool()
-async def create_session(
-    source: str,
+async def create_session(source: str,
     prompt: str,
     title: str = "",
     starting_branch: str = "",
-    require_plan_approval: bool = False
-) -> Dict[str, Any]:
+    require_plan_approval: bool = False) -> Dict[str, Any]:
     """Create a new Jules session for a given source and prompt."""
     payload: Dict[str, Any] = {
         "prompt": prompt,
@@ -146,7 +145,7 @@ async def delete_session(session_id: str) -> Dict[str, Any]:
 @mcp.tool()
 async def clean_completed_sessions() -> Dict[str, Any]:
     """Scans all sessions and deletes completed, terminated, failed, or inactive sessions automatically."""
-    sessions_res = await list_sessions(fetch_all=True)
+    sessions_res = await list_sessions(fetch_all=False)
     if "error" in sessions_res:
         return sessions_res
 
@@ -159,12 +158,28 @@ async def clean_completed_sessions() -> Dict[str, Any]:
         "CLOSED", "FAILED", "EXPIRED", "REJECTED", "FINISHED", "ABORTED"
     )
 
+    to_delete = []
     for s in sessions:
         sid = s.get("id") or s.get("name")
         state = s.get("state", "").upper()
-        if state in terminal_states:
-            del_res = await delete_session(sid)
-            if "error" in del_res:
+        if sid and state in terminal_states:
+            to_delete.append(sid)
+
+    if not to_delete:
+        return {"status": "success", "deleted_count": 0, "deleted_sessions": [], "errors": []}
+
+    async def _delete_one(sid: str):
+        try:
+            return sid, await asyncio.wait_for(delete_session(sid), timeout=5.0)
+        except Exception as e:
+            return sid, {"error": str(e)}
+
+    results = await asyncio.gather(*[_delete_one(sid) for sid in to_delete], return_exceptions=True)
+
+    for res in results:
+        if isinstance(res, tuple) and len(res) == 2:
+            sid, del_res = res
+            if isinstance(del_res, dict) and "error" in del_res:
                 errors.append({"session_id": sid, "error": del_res["error"]})
             else:
                 deleted_ids.append(sid)

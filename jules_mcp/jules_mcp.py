@@ -178,7 +178,7 @@ async def clean_completed_sessions() -> Dict[str, Any]:
 
 
 @mcp.tool()
-async def list_activities(session_id: str, page_size: Optional[int] = 20, page_token: Optional[str] = None) -> Dict[str, Any]:
+async def list_activities(session_id: str, page_size: int = 20, page_token: str = "") -> Dict[str, Any]:
     """List activities for a specific session."""
     if not session_id:
         return {"error": "session_id is required"}
@@ -267,7 +267,7 @@ async def send_session_message(session_id: str, prompt: str = "", message: str =
     return await _make_api_request("POST", url, success_override={"status": "sent", "session_id": clean_id}, json=payload)
 
 @mcp.tool()
-async def list_sources(page_size: Optional[int] = 50, page_token: Optional[str] = None, filter_str: Optional[str] = None) -> Dict[str, Any]:
+async def list_sources(page_size: int = 50, page_token: str = "", filter_str: str = "") -> Dict[str, Any]:
     """List sources with optional filter and pagination."""
     params = _get_pagination_params(page_size, page_token)
     if filter_str:
@@ -285,7 +285,7 @@ async def get_source(source_id: str) -> Dict[str, Any]:
     return await _make_api_request("GET", f"{JULES_API_BASE}/sources/{clean_id}")
 
 @mcp.tool()
-async def get_all_sources(filter_str: Optional[str] = None) -> Dict[str, Any]:
+async def get_all_sources(filter_str: str = "") -> Dict[str, Any]:
     """Get all sources with optional filtering (auto-pagination)."""
     all_sources = []
     current_token = None

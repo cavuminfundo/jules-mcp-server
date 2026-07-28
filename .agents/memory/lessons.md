@@ -9,9 +9,9 @@ This file serves as a memory bank to record past execution mistakes, lessons lea
 - **Single Worker Execution**: Il Sub-Agente invocato per la supervisione è un esecutore finale diretto e non deve MAI invocare a sua volta `invoke_subagent`. Esegue direttamente tutte le chiamate ai tool MCP (`call_mcp_tool`).
 
 ## 2. Infrastruttura Docker Remota & Mappa di Topologia
-- **Issue**: Tentativo errato di lanciare `docker build` / `docker run` sulla macchina locale `federico` per aggiornare il server `jules-mcp-server`.
-- **Root Cause**: Mancata consultazione preventiva della mappa di topologia `docker_stacks_schema.md`.
-- **Checklist/Rule**: Il container `jules_mcp_server` risiede su **LXC 102 (n8n)** all'IP **`192.168.88.103`**. L'aggiornamento del server MCP avviene mediante push del codice su GitHub, attesa della build su GHCR (`ghcr.io/cavuminfundo/jules-mcp-server:latest`) e pull/restart effettuato sul server dedicato `192.168.88.103` (o via Dockge/Portainer). Gli agenti non devono mai eseguire comandi Docker per i server MCP sul host locale `federico`.
+- **Issue**: Tentativo errato di lanciare `docker build` / `docker run` sulla macchina di sviluppo locale per aggiornare il server `jules-mcp-server`.
+- **Root Cause**: Mancata consultazione preventiva della mappa di topologia delle infrastrutture.
+- **Checklist/Rule**: Il container `jules_mcp_server` viene eseguito in ambiente remoto dedicato. L'aggiornamento del server MCP avviene mediante push del codice su GitHub, attesa della build su GHCR (`ghcr.io/cavuminfundo/jules-mcp-server:latest`) e pull/restart effettuato sul server di deployment target. Gli agenti non devono mai eseguire comandi Docker per i server MCP sul host locale di sviluppo.
 
 ## 3. Gestione Obbligatoria Dual-Phase (Session & PR Management) e Resilienza Errori MCP
 - **Issue**: Salto completo della fase 1 di gestione sessioni Jules (`jules-mcp`) per passare direttamente alla gestione PR su GitHub o per interruzione anticipata in presenza di un errore di chiamata MCP (es. errori di schema o parametri errati).
@@ -32,4 +32,4 @@ This file serves as a memory bank to record past execution mistakes, lessons lea
 ## 6. Mandatory Pre-Compiled Container Images Policy (GHCR)
 - **Issue**: Uso temporaneo di volume mounts in `compose.yaml` in produzione.
 - **Root Cause**: Non attendere il completamento della build Docker automatica su GHCR.
-- **Checklist/Rule**: In produzione (LXC 102 @ `192.168.88.103`), i container DEVONO utilizzare ESCLUSIVAMENTE immagini precompilate ufficiali da GitHub Container Registry (`image: ghcr.io/cavuminfundo/jules-mcp-server:latest`). È tassativamente vietato usare volume mounts di file python locali in produzione. Ogni modifica del codice deve essere committata su GitHub ed applicata via `docker compose pull`.
+- **Checklist/Rule**: In produzione, i container DEVONO utilizzare ESCLUSIVAMENTE immagini precompilate ufficiali da GitHub Container Registry (`image: ghcr.io/cavuminfundo/jules-mcp-server:latest`). È tassativamente vietato usare volume mounts di file python locali in produzione. Ogni modifica del codice deve essere committata su GitHub ed applicata via `docker compose pull`.
